@@ -25,7 +25,6 @@ func main() {
     asleep = make(map[time.Time][]int)
 
 
-
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		parse(scanner.Text())
@@ -33,48 +32,47 @@ func main() {
 
 	computeAsleep()
 
+
 	sleepy := getMostAsleepGuard()
 	asleepTime := getMostAsleepTime(sleepy)
 
 	fmt.Println(sleepy * asleepTime)
 
-	sleepyMinute := getMostSleepyMinute()
-	asleepGuard := getMostAsleepGuardAtMinute(sleepyMinute)
-
-	fmt.Println(sleepyMinute * asleepGuard)
+	minute, guard := getStrat2()
+	fmt.Println(minute, guard, minute * guard)
 }
 
-func getMostAsleepGuardAtMinute(sleepyMinute int) int {
-	countAsleep := make(map[int]int)
+func getStrat2() (int, int) {
+	asleepGuard := make([]map[int]int, 60)
 
-	for k, v := range asleep {
-		if guardIds[k] == 0 {
-			fmt.Println(k)
-		}
-		countAsleep[guardIds[k]] = countAsleep[guardIds[k]] + v[sleepyMinute]
+	for i := 0; i<60; i++ {
+		asleepGuard[i] = make(map[int]int)
 	}
 
-	fmt.Println(countAsleep)
+	for key, value := range asleep {
+		for i := 0; i<60; i++ {
+			asleepGuard[i][guardIds[key]] = asleepGuard[i][guardIds[key]] + value[i]
+		}
+	}
 
 	maxTime := 0
-	sleepyId := -1
+	minute := -1
+	maxGuard := -1
 
-	for guard, time := range countAsleep {
-		if time > maxTime {
-			maxTime = time
-			sleepyId = guard
+	for i := 0; i<60; i++ {
+		for guard, duration := range asleepGuard[i] {
+			if duration > maxTime {
+				maxTime = duration
+				minute = i
+				maxGuard = guard
+			}
 		}
 	}
-	return sleepyId
+	return minute, maxGuard
 }
 
-func getMostSleepyMinute() int {
-	countAsleep := make([]int, 60)
-	for _, v := range asleep {
-		addArrays(countAsleep, v)
-	}
-	return getMaxIndex(countAsleep)
-}
+
+
 
 func getMostAsleepTime(guard int) int {
 	countAsleep := make([]int, 60)
@@ -86,10 +84,10 @@ func getMostAsleepTime(guard int) int {
 	return getMaxIndex(countAsleep)
 }
 
-func getMaxIndex(countAsleep []int) int {
+func getMaxIndex(ints []int) int {
 	maxMinutes := 0
 	maxIndex := -1
-	for i, val := range countAsleep {
+	for i, val := range ints {
 		if val > maxMinutes {
 			maxIndex = i
 			maxMinutes = val
@@ -103,8 +101,6 @@ func addArrays(dest []int, increment []int) {
 		dest[i] = dest[i] + increment[i]
 	}
 }
-
-
 
 func getMostAsleepGuard() int {
 	asleepAmount := make(map[int]int)
@@ -144,7 +140,7 @@ func parse(line string) {
 		times[dateKey] = append(times[dateKey], timeValue)
 	} else {
 		guardId := getGuardId(tokens[3])
-		if(timeValue > 50) {
+		if(timeValue > 45) {
 			dateKey = incrementDateKey(dateKey)
 		}
 		guardIds[dateKey] = guardId
