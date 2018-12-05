@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/golang-collections/collections/stack"
 	"io/ioutil"
 
 	"os"
@@ -32,20 +31,15 @@ func main() {
 }
 
 func reactPolymerWithStack(polymer []byte) []byte {
-	molecule := new(stack.Stack)
+	molecule := make([]byte, 0)
 	for _, b := range polymer {
-		if molecule.Peek() == b + 32 || molecule.Peek() == b - 32 {
-			molecule.Pop()
+		if len(molecule) > 0 && (molecule[len(molecule) - 1] == b + 32 || molecule[len(molecule) - 1] == b - 32){
+			molecule = molecule[:len(molecule) - 1]
 		} else {
-			molecule.Push(b)
+			molecule = append(molecule, b)
 		}
 	}
-
-	result := make([]byte, molecule.Len())
-	for i := 0; i<molecule.Len(); i++ {
-		result[i] = molecule.Pop().(byte)
-	}
-	return result
+	return molecule
 }
 
 
