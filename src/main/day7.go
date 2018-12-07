@@ -27,10 +27,10 @@ func main() {
 		vertices[v2] = true
 	}
 
-	fmt.Println(topologicalSort(graph, vertices))
+	fmt.Println(topologicalSort(graph, vertices, parents))
 }
 
-func topologicalSort(graph map[string][]string, vertices map[string]bool) string {
+func topologicalSort(graph map[string][]string, vertices map[string]bool, parents map[string][]string) string {
 	candidates := make([]string, 0)
 	for v, _ := range vertices {
 		candidate := true
@@ -55,30 +55,27 @@ func topologicalSort(graph map[string][]string, vertices map[string]bool) string
 	for len(candidates) != 0 {
 		fmt.Println(candidates)
 		v, candidates = extractNext(candidates)
-		candidates = appendListIfNotExists(candidates, graph[v])
+
+		for _, next := range graph[v] {
+			parents[next] = remove(parents[next], v)
+			if len(parents[next]) == 0 {
+				candidates = append(candidates, next)
+			}
+		}
 
 		topOrder = topOrder + v
 	}
 	return topOrder
 }
-
-func appendListIfNotExists(list []string, elements []string) []string {
-	for _, element := range elements {
-		if !containsStr(list, element) {
-			list = append(list, element)
+func remove(edges []string, v string) []string {
+	for i, u := range edges {
+		if u == v {
+			return append(edges[:i], edges[i+1:]...)
 		}
 	}
-	return list
+	return edges
 }
 
-func containsStr(list []string, element string) bool {
-	for _, v := range list {
-		if v == element {
-			return true
-		}
-	}
-	return false
-}
 
 func extractNext(candidates []string) (string, []string) {
 	minStrIndex := 0
