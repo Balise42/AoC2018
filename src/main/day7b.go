@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-var offset = 0
-var workers = 2
+var offset = 60
+var workers = 5
 
 func main() {
 	filename := os.Args[1]
@@ -66,14 +66,15 @@ func processDuration(graph map[string][]string, vertices map[string]bool, parent
 
 
 	for len(candidates) != 0 {
+		fmt.Println(candidates)
 		w, date := getWorkerStartTime(workerNextSpot)
 		var v string
 		var startTask int
-		v, candidates, startTask = getNextInOrder(candidates)
+		v, candidates, startTask = getNextInOrder(candidates, date)
 		if startTask < date {
 			startDate[v] = date
 		} else {
-			startDate[v] = w
+			startDate[v] = startTask
 		}
 		completionDate[v] = startDate[v] + offset + int(byte(v[0]) - 'A')
 		workerNextSpot[w] = completionDate[v] + 1
@@ -81,47 +82,12 @@ func processDuration(graph map[string][]string, vertices map[string]bool, parent
 		for _, next := range graph[v] {
 			parents[next] = removeEdge(parents[next], v)
 			if len(parents[next]) == 0 {
-				candidates[next] =
+				candidates[next] = getTaskStartTime(completionDate, dependencies[next])
 			}
 		}
 
 
 	}
-	return topOrder
-
-/*	var v string
-	for len(candidates) != 0 {
-		fmt.Println(candidates)
-		v, candidates = getNextInOrder(candidates)
-
-		var worker = -1
-		if startDate[v] == -1 {
-			worker, startDate[v] = getWorkerStartTime(workerNextSpot)
-			completionDate[v] = startDate[v] + offset + int(byte(v[0]) - 'A')
-			workerNextSpot[worker] = completionDate[v] + 1
-		}
-
-		for _, next := range graph[v] {
-			parents[next] = removeEdge(parents[next], v)
-			if len(parents[next]) == 0 {
-				candidates[next] = completionDate[v] + 1
-				taskStartTime := getTaskStartTime(completionDate, dependencies[next])
-				w, workerStartTime := getWorkerStartTime(workerNextSpot)
-				var realStartTime int
-				if taskStartTime < realStartTime {
-					realStartTime = workerStartTime
-				} else {
-					realStartTime = taskStartTime
-				}
-				startDate[next] = taskStartTime
-				completionDate[next] = taskStartTime + offset + int(byte(next[0]) - 'A')
-				workerNextSpot[w] = completionDate[next] + 1
-			}
-		}
-	}*/
-
-	fmt.Println(startDate)
-	fmt.Println(completionDate)
 
 	res := 0
 	for _, time := range completionDate {
@@ -129,7 +95,7 @@ func processDuration(graph map[string][]string, vertices map[string]bool, parent
 			res = time
 		}
 	}
-	return res
+	return res + 1
 }
 
 func parseEdgeb(line string) (string, string) {
@@ -158,9 +124,22 @@ func getWorkerStartTime(workers []int) (int, int) {
 	}
 	return worker, minTime
 }
-func getNextInOrder(candidates map[string]int) (string, map[string]int, int) {
+func getNextInOrder(candidates map[string]int, date int) (string, map[string]int, int) {
 	var candidate = "a"
 	var startTime = math.MaxInt64
+
+	for k, v := range candidates {
+		if v <= date && k < candidate {
+			candidate = k
+			startTime = v
+		}
+	}
+
+	if candidate != "a" {
+		delete(candidates, candidate)
+		return candidate, candidates, startTime
+	}
+
 	for k, v := range candidates {
 		if v < startTime {
 			candidate = k
