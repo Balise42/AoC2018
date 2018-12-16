@@ -9,7 +9,7 @@ const gridSize = 300
 
 
 func main() {
-	const gridId = 18
+	const gridId = 1309
 
 	energy := make([][]int64, gridSize)
 	for i := 0; i < gridSize; i++ {
@@ -74,13 +74,18 @@ func getMaxEnergyB(energy [][]int64) (int, int, int) {
 			if y > x {
 				maxCoord = y
 			}
-			for size := 1; size < gridSize - maxCoord; size++ {
-				squareEnergy = squareEnergy + energy[x + size][y] + energy[x][y+size]
+			for size := 1; size < gridSize-maxCoord; size++ {
+
+				for offset := 0; offset < size; offset++ {
+					squareEnergy = squareEnergy + energy[x+size][y+offset] + energy[x+offset][y+size]
+				}
+				squareEnergy = squareEnergy + energy[x+size][y+size]
+
 				if squareEnergy > maxEnergy {
 					maxEnergy = squareEnergy
 					xMax = x + 1
 					yMax = y + 1
-					sizeMax = 1
+					sizeMax = size + 1
 				}
 			}
 		}
