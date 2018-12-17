@@ -1,11 +1,11 @@
 package main
 
 import (
-	"strings"
-	"os"
 	"bufio"
-	"sort"
 	"fmt"
+	"os"
+	"sort"
+	"strings"
 )
 
 type Track struct {
@@ -76,6 +76,7 @@ type Cart struct {
 	Dir    rune
 	Option string
 	Id     int
+	Moved  bool
 }
 
 func NewCart(pos *Track, dir rune, id int) Cart {
@@ -92,6 +93,7 @@ func NewCart(pos *Track, dir rune, id int) Cart {
 	} else if dir == 'v' {
 		cart.Dir = 'S'
 	}
+	cart.Moved = false
 	return cart
 }
 
@@ -105,21 +107,24 @@ func (c Cart) compare(other Cart) int {
 	return 1
 }
 
-func (c Cart) Collides(carts []Cart) bool {
-	for _, cart := range carts {
+func (c Cart) Collides(carts []Cart) int {
+	for j, cart := range carts {
 		if cart.Id == c.Id {
 			continue
 		}
 		if cart.Pos == c.Pos {
-			return true
+			return j
 		}
 	}
-	return false
+	return -1
 }
 
 var dirs = "NESW"
 
 func (c *Cart) Move() {
+	if c.Moved {
+		return
+	}
 	if c.Pos.Type == '|' || c.Pos.Type == '-' {
 		c.Pos = c.Pos.Paths[c.Dir]
 	} else if c.Pos.Type == '/' {
@@ -171,6 +176,7 @@ func (c *Cart) Move() {
 			c.Option = "left"
 		}
 	}
+	c.Moved = true
 }
 
 func fillNetwork(network [][]Track) {
@@ -233,17 +239,35 @@ func main() {
 
 	fillNetwork(network)
 
-	for i := 1; i < 50; i++ {
+	for {
 		sort.Sort(byPos(carts))
+		collided := false
 		for j, c := range carts {
 			c.Move()
 			carts[j] = c
-			if c.Collides(carts) {
-				fmt.Println(c.Pos.X, c.Pos.Y)
+			collision := c.Collides(carts)
+			if collision != -1 {
+				if collision > j {
+					carts = append(carts[:collision], carts[collision+1:]...)
+					carts = append(carts[:j], carts[j+1:]...)
+				} else {
+					carts = append(carts[:j], carts[j+1:]...)
+					carts = append(carts[:collision], carts[collision+1:]...)
+				}
+				collided = true
 				break
 			}
-			if c.Id == 1 {
-				fmt.Println(carts[j].Pos.X, carts[j].Pos.Y)
+		}
+		if len(carts) == 1 {
+			if !carts[0].Moved {
+				carts[0].Move()
+			}
+			fmt.Println(carts[0].Pos.X, carts[0].Pos.Y)
+			break
+		}
+		if !collided {
+			for i, _ := range carts {
+				carts[i].Moved = false
 			}
 		}
 	}
