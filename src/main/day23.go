@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"fmt"
+	"math"
 )
 
 type Nanobot struct {
@@ -48,131 +49,131 @@ func main() {
 	fmt.Println(computeMaxBotsPointDistance(nanobots))
 }
 func computeMaxBotsPointDistance(nanobots []*Nanobot) int {
-	intervalCandidates := make([]*Nanobot, 0)
-	maxIntersect := 0
+	minX, maxX, minY, maxY, minZ, maxZ, minR, maxR := getBounds(nanobots)
+	fmt.Println(minX, maxX, minY, maxY, minZ, maxZ, minR, maxR)
 
-	for _, n := range nanobots {
-		intersect := numIntersectionsWithBounds(n, nanobots)
-		if intersect == maxIntersect {
-			intervalCandidates = append(intervalCandidates, n)
-		} else if intersect > maxIntersect {
-			maxIntersect = intersect
-			intervalCandidates = []*Nanobot{n}
-		}
-	}
-
-	var candidate *Nanobot = nil
-
-	// i actually know i have a single candidate here; it would require more care in the general case
-	for _, i := range intervalCandidates {
-		for _, b := range getNanobotBounds(i) {
-			if numIntersectionsCenter(b, nanobots) == maxIntersect && closer(b, candidate) {
-				candidate = b
-			}
-		}
-	}
-	fmt.Println(candidate)
-
-	delta := 0
-
-	if candidate.X < 0 {
-		delta = 1
-	} else if candidate.X > 0 {
-		delta = -1
-	}
-	if delta != 0 {
-		for {
-			newCandidate := &Nanobot{candidate.X + delta, candidate.Y, candidate.Z, candidate.Range}
-			if closer(newCandidate, candidate) && numIntersectionsCenter(newCandidate, nanobots) == maxIntersect {
-				candidate = newCandidate
-			} else {
-				break
+	sampledLocaleMax := make(map[*Nanobot]int)
+	samplingInterval := minR / 30
+	for x := minX; x <= maxX; x += samplingInterval {
+		for y := minY; y <= maxZ; y += samplingInterval {
+			for z := minZ; z <= maxZ; z += samplingInterval {
+				num := numIntersectionsCenter(&Nanobot{x, y, z, 0}, nanobots, 869)
+				if num >= 870 {
+					sampledLocaleMax[&Nanobot{x, y, z, 0}] = num
+				}
 			}
 		}
 	}
 
-	delta = 0
-	if candidate.Y < 0 {
-		delta = 1
-	} else if candidate.Y > 0 {
-		delta = -1
+	return findMax(sampledLocaleMax, nanobots, samplingInterval)
+}
+
+func findMax(locals map[*Nanobot]int, nanobots []*Nanobot, samplingInterval int) int {
+	globalMax := 0
+	var globalMaxPoint *Nanobot
+	for k, v := range locals {
+		fmt.Println(k, v)
+		localMax, localMaxPoint := findLocalMax(k, v, nanobots, globalMax)
+		if localMax > globalMax {
+			globalMax = localMax
+			globalMaxPoint = localMaxPoint
+		} else if localMax == globalMax && closer(localMaxPoint, globalMaxPoint) {
+			globalMaxPoint = localMaxPoint
+		}
 	}
-	if delta != 0 {
-		for {
-			newCandidate := &Nanobot{candidate.X, candidate.Y + delta, candidate.Z, candidate.Range}
-			if closer(newCandidate, candidate) && numIntersectionsCenter(newCandidate, nanobots) == maxIntersect {
-				candidate = newCandidate
-			} else {
-				break
+	fmt.Println(globalMax, globalMaxPoint)
+	return distNanobots(globalMaxPoint, &Nanobot{0, 0, 0, 0})
+}
+
+//94622655 too low
+//96277887 too low
+//97602486 not right
+
+func findLocalMax(n *Nanobot, currMax int, nanobots []*Nanobot, globalMax int) (int, *Nanobot) {
+	localMax := currMax
+	localMaxPoint := n
+
+	i := 100
+
+	for x := n.X - i; x <= n.X+i; x++ {
+		for y := n.Y - i; y <= n.Y+i; y++ {
+			for z := n.Z - i; z <= n.Z+i; z++ {
+				candidate := &Nanobot{x, y, z, 0}
+				numIntCandidate := numIntersectionsCenter(candidate, nanobots, localMax)
+				if numIntCandidate > localMax {
+					localMaxPoint = candidate
+					localMax = numIntCandidate
+				} else if numIntCandidate == localMax && closer(candidate, localMaxPoint) {
+					localMaxPoint = candidate
+				}
 			}
 		}
 	}
 
-	delta = 0
-	if candidate.Z < 0 {
-		delta = 1
-	} else if candidate.Z > 0 {
-		delta = -1
-	}
-	if delta != 0 {
-		for {
-			newCandidate := &Nanobot{candidate.X, candidate.Y, candidate.Z + delta, candidate.Range}
-			if closer(newCandidate, candidate) && numIntersectionsCenter(newCandidate, nanobots) == maxIntersect {
-				candidate = newCandidate
-			} else {
-				break
-			}
+	return localMax, localMaxPoint
+}
+
+func getBounds(nanobots []*Nanobot) (int, int, int, int, int, int, int, int) {
+	minX := math.MaxInt64
+	maxX := math.MinInt64
+	minY := minX
+	maxY := maxX
+	minZ := minX
+	maxZ := maxX
+	minR := minX
+	maxR := 0
+
+	for _, b := range nanobots {
+		if b.X < minX {
+			minX = b.X
+		}
+		if b.X > maxX {
+			maxX = b.X
+		}
+		if b.Y < minY {
+			minY = b.Y
+		}
+		if b.Y > maxY {
+			maxY = b.Y
+		}
+		if b.Z < minZ {
+			minZ = b.Z
+		}
+		if b.Z > maxZ {
+			maxZ = b.Z
+		}
+		if b.Range < minR {
+			minR = b.Range
+		}
+		if b.Range > maxR {
+			maxR = b.Range
 		}
 	}
-
-
-	// 97771477 too low
-	return distNanobots(candidate, &Nanobot{0,0,0,0})
+	return minX, maxX, minY, maxY, minZ, maxZ, minR, maxR
 }
 
 func closer(n1 *Nanobot, n2 *Nanobot) bool {
 	if n2 == nil {
 		return true
 	}
-	return distNanobots(n1, &Nanobot{0,0,0,0}) < distNanobots(n2, &Nanobot{0,0,0,0})
+	return distNanobots(n1, &Nanobot{0, 0, 0, 0}) < distNanobots(n2, &Nanobot{0, 0, 0, 0})
 }
 
-func numIntersectionsWithBounds(nanobot *Nanobot, bots []*Nanobot) int {
-	bounds := getNanobotBounds(nanobot)
+func numIntersectionsCenter(nanobot *Nanobot, bots []*Nanobot, globalMax int) int {
 	res := 0
-
-	for _, b := range bounds {
-		num := numIntersectionsCenter(b, bots)
-		if num > res {
-			res = num
-		}
-	}
-
-	return res
-}
-
-func numIntersectionsCenter(nanobot *Nanobot, bots []*Nanobot) int {
-	res := 0
+	maxNumLeft := 1000
 
 	for _, n := range bots {
 		if distNanobots(nanobot, n) <= n.Range {
 			res++
+		} else {
+			maxNumLeft--
+		}
+		if maxNumLeft+res < globalMax {
+			break
 		}
 	}
 	return res
-}
-
-func getNanobotBounds(n *Nanobot) []*Nanobot {
-	return []*Nanobot{
-		{n.X - n.Range, n.Y - n.Range, n.Z - n.Range, 0},
-		{n.X + n.Range, n.Y - n.Range, n.Z - n.Range, 0},
-		{n.X - n.Range, n.Y + n.Range, n.Z - n.Range, 0},
-		{n.X - n.Range, n.Y - n.Range, n.Z + n.Range, 0},
-		{n.X + n.Range, n.Y + n.Range, n.Z - n.Range, 0},
-		{n.X - n.Range, n.Y + n.Range, n.Z + n.Range, 0},
-		{n.X + n.Range, n.Y - n.Range, n.Z + n.Range, 0},
-		{n.X + n.Range, n.Y + n.Range, n.Z + n.Range, 0},
-	}
 }
 
 var nanobotRegex = regexp.MustCompile(`pos=<(-?\d+),(-?\d+),(-?\d+)>,\sr=(\d+)`)
