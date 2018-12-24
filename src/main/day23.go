@@ -50,68 +50,85 @@ func main() {
 }
 func computeMaxBotsPointDistance(nanobots []*Nanobot) int {
 	minX, maxX, minY, maxY, minZ, maxZ, minR, maxR := getBounds(nanobots)
+
+	current := &Nanobot{0,0,0,0}
+	for k := 0; k<5000; k++{
+		currCover, currPen := penalty(current, nanobots)
+		penalties := make(map[*Nanobot]int)
+		for i := 1; i<=maxR/2 && current.X -i >= minX; i++ {
+			nano := &Nanobot {current.X - i, current.Y, current.Z, 0}
+			newCover, newPen := penalty(nano, nanobots)
+			if newCover > currCover || newPen < currPen {
+				penalties[nano] = newPen
+				break
+			}
+		}
+
+		for i := 1; i<=maxR/2 && current.X + i <= maxX; i++ {
+			nano := &Nanobot{current.X + i, current.Y, current.Z, 0}
+			newCover, newPen := penalty(nano, nanobots)
+			if newCover > currCover || newPen < currPen  {
+				penalties[nano] = newPen
+				break
+			}
+		}
+
+		for i := 1; i<=maxR/2 && current.Y -i >= minY; i++ {
+			nano := &Nanobot{current.X, current.Y - i, current.Z, 0}
+			newCover, newPen := penalty(nano, nanobots)
+			if newCover > currCover || newPen < currPen {
+				penalties[nano] = newPen
+				break
+			}
+		}
+
+		for i := 1; i<=maxR/2 && current.Y + i <= maxY; i++ {
+			nano := &Nanobot{current.X, current.Y + i, current.Z, 0}
+			newCover, newPen := penalty(nano, nanobots)
+			if newCover > currCover || newPen < currPen {
+				penalties[nano] = newPen
+				break
+			}
+		}
+
+		for i := 1; i<=maxR/2 && current.Z -i >= minZ ; i++ {
+			nano := &Nanobot{current.X, current.Y, current.Z - i, 0}
+			newCover, newPen := penalty(nano, nanobots)
+			if newCover > currCover || newPen < currPen {
+				penalties[nano] = newPen
+				break
+			}
+		}
+
+		for i := 1; i<=maxR/2 && current.Z +i <= maxZ; i++ {
+			nano := &Nanobot{current.X, current.Y, current.Z + i, 0}
+			newCover, newPen := penalty(nano, nanobots)
+			if newCover > currCover || newPen < currPen {
+				penalties[nano] = newPen
+				break
+			}
+		}
+
+		var nextCandidate *Nanobot = nil
+		for k, v := range penalties {
+			if v < currPen {
+				nextCandidate = k
+				currPen = v
+			}
+		}
+
+		if nextCandidate == nil {
+			break
+		}
+		fmt.Println(currPen)
+	}
 	fmt.Println(minX, maxX, minY, maxY, minZ, maxZ, minR, maxR)
-
-	sampledLocaleMax := make(map[*Nanobot]int)
-	samplingInterval := minR / 30
-	for x := minX; x <= maxX; x += samplingInterval {
-		for y := minY; y <= maxZ; y += samplingInterval {
-			for z := minZ; z <= maxZ; z += samplingInterval {
-				num := numIntersectionsCenter(&Nanobot{x, y, z, 0}, nanobots, 869)
-				if num >= 870 {
-					sampledLocaleMax[&Nanobot{x, y, z, 0}] = num
-				}
-			}
-		}
-	}
-
-	return findMax(sampledLocaleMax, nanobots, samplingInterval)
+	fmt.Println((maxX-minX)/minR, (maxY - minY)/minR, (maxZ - minZ)/minR)
+	return 0
 }
 
-func findMax(locals map[*Nanobot]int, nanobots []*Nanobot, samplingInterval int) int {
-	globalMax := 0
-	var globalMaxPoint *Nanobot
-	for k, v := range locals {
-		fmt.Println(k, v)
-		localMax, localMaxPoint := findLocalMax(k, v, nanobots, globalMax)
-		if localMax > globalMax {
-			globalMax = localMax
-			globalMaxPoint = localMaxPoint
-		} else if localMax == globalMax && closer(localMaxPoint, globalMaxPoint) {
-			globalMaxPoint = localMaxPoint
-		}
-	}
-	fmt.Println(globalMax, globalMaxPoint)
-	return distNanobots(globalMaxPoint, &Nanobot{0, 0, 0, 0})
-}
 
-//94622655 too low
-//96277887 too low
-//97602486 not right
 
-func findLocalMax(n *Nanobot, currMax int, nanobots []*Nanobot, globalMax int) (int, *Nanobot) {
-	localMax := currMax
-	localMaxPoint := n
-
-	i := 100
-
-	for x := n.X - i; x <= n.X+i; x++ {
-		for y := n.Y - i; y <= n.Y+i; y++ {
-			for z := n.Z - i; z <= n.Z+i; z++ {
-				candidate := &Nanobot{x, y, z, 0}
-				numIntCandidate := numIntersectionsCenter(candidate, nanobots, localMax)
-				if numIntCandidate > localMax {
-					localMaxPoint = candidate
-					localMax = numIntCandidate
-				} else if numIntCandidate == localMax && closer(candidate, localMaxPoint) {
-					localMaxPoint = candidate
-				}
-			}
-		}
-	}
-
-	return localMax, localMaxPoint
-}
 
 func getBounds(nanobots []*Nanobot) (int, int, int, int, int, int, int, int) {
 	minX := math.MaxInt64
@@ -159,18 +176,25 @@ func closer(n1 *Nanobot, n2 *Nanobot) bool {
 	return distNanobots(n1, &Nanobot{0, 0, 0, 0}) < distNanobots(n2, &Nanobot{0, 0, 0, 0})
 }
 
-func numIntersectionsCenter(nanobot *Nanobot, bots []*Nanobot, globalMax int) int {
+func penalty(nanobot *Nanobot, bots []*Nanobot) (int, int) {
+	sum := 0
+	numOk := 0
+	for _, n := range bots {
+		if distNanobots(nanobot, n) > n.Range {
+			sum += distNanobots(nanobot, n) - n.Range
+		} else {
+			numOk++
+		}
+	}
+	return numOk, sum
+}
+
+func numIntersectionsCenter(nanobot *Nanobot, bots []*Nanobot) int {
 	res := 0
-	maxNumLeft := 1000
 
 	for _, n := range bots {
 		if distNanobots(nanobot, n) <= n.Range {
 			res++
-		} else {
-			maxNumLeft--
-		}
-		if maxNumLeft+res < globalMax {
-			break
 		}
 	}
 	return res
