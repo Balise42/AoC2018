@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"fmt"
 	"math"
-	"math/rand"
-	"time"
 )
 
 type Nanobot struct {
@@ -51,72 +49,172 @@ func main() {
 	fmt.Println(computeMaxBotsPointDistance(nanobots))
 }
 
-func random(i int, j int) int {
-	return int(rand.Int63n(int64(j)-int64(i))) + i
+type OctreeNode struct {
+	MinX     int
+	MaxX     int
+	MinY     int
+	MaxY     int
+	MinZ     int
+	MaxZ     int
+	NumBots  int
+	Parent   *OctreeNode
+	Children []*OctreeNode
 }
-
 
 func computeMaxBotsPointDistance(nanobots []*Nanobot) int {
 	minX, maxX, minY, maxY, minZ, maxZ, _, _ := getBounds(nanobots)
-	rand.Seed(time.Now().UnixNano())
+	octree := &OctreeNode{minX, maxX, minY, maxY, minZ, maxZ, 0, nil, nil}
 
-	point := &Nanobot{random(minX, maxX), random(minY, maxY), random(minZ, maxZ), 0}
-	currValue := numIntersectionsCenter(point, nanobots)
-	for i := 0; i < 5000000; i++ {
-		tmpPoint := &Nanobot{random(minX, maxX), random(minY, maxY), random(minZ, maxZ), 0}
+	for _, nanobot := range nanobots {
+		fmt.Println(nanobot)
+		insertNanobotInOctree(octree, nanobot)
+	}
 
-		tmpValue := numIntersectionsCenter(tmpPoint, nanobots)
-		if tmpValue > currValue {
-			point = tmpPoint
-			currValue = tmpValue
+	return getMaxNumberBots(octree)
+}
+func getMaxNumberBots(node *OctreeNode) int {
+	numBots := node.NumBots
+
+	maxChildren := 0
+	for _, child := range node.Children {
+		tmpMax := getMaxNumberBots(child)
+		if tmpMax > maxChildren {
+			maxChildren = tmpMax
 		}
 	}
-	fmt.Println(point)
-	fmt.Println(currValue)
-
-	closestPoint := getClosestPoint(point, currValue, nanobots)
-	return distNanobots(closestPoint, &Nanobot{0,0,0,0})
+	return numBots + maxChildren
 }
 
-func getClosestPoint(nanobot *Nanobot, value int, nanobots []*Nanobot) *Nanobot {
-	currNanobot := &Nanobot{nanobot.X, nanobot.Y, nanobot.Z, 0}
-	//i know the nanobot has >0 coords
-
-	for {
-		currNanobot.X -= 1
-		if numIntersectionsCenter(currNanobot, nanobots) < value {
-			currNanobot.X += 1
-			break
+func insertNanobotInOctree(node *OctreeNode, nanobot *Nanobot) {
+	if isEntirelyIn(node, nanobot) {
+		node.NumBots++
+	} else if isEntirelyOut(node, nanobot) {
+		// do nothing actually
+	} else {
+		splitNodeIfNecessary(node)
+		for _, child := range node.Children {
+			insertNanobotInOctree(child, nanobot)
 		}
 	}
-
-	for {
-		currNanobot.Y -= 1
-		if numIntersectionsCenter(currNanobot, nanobots) < value {
-			currNanobot.Y += 1
-			break
-		}
-	}
-
-	for {
-		currNanobot.Z -= 1
-		if numIntersectionsCenter(currNanobot, nanobots) < value {
-			currNanobot.Z += 1
-			break
-		}
-	}
-	return currNanobot
 }
 
-func numIntersectionsCenter(nanobot *Nanobot, bots []*Nanobot) int {
-	res := 0
+func splitNodeIfNecessary(n *OctreeNode) {
+	if len(n.Children) != 0 {
+		return
+	}
 
-	for _, n := range bots {
-		if distNanobots(nanobot, n) <= n.Range {
-			res++
+	var midXl, midXr, midYl, midYr, midZl, midZr int
+	if n.MinX == n.MaxX || n.MaxX == n.MinX + 1 {
+		midXl = n.MinX
+		midXr = n.MaxX
+	} else {
+		midXl = (n.MinX + n.MaxX)/2
+		midXr = (n.MinX + n.MaxX)/2 + 1
+	}
+	if n.MinY == n.MaxY || n.MaxY == n.MinY + 1{
+		midYl = n.MinY
+		midYr = n.MaxY
+	} else {
+		midYl = (n.MinY + n.MaxY)/2
+		midYr = (n.MinY + n.MaxY)/2 + 1
+	}
+	if n.MinZ == n.MaxZ || n.MaxZ == n.MinZ + 1{
+		midZl = n.MinZ
+		midZr = n.MaxZ
+	} else {
+		midZl = (n.MinZ + n.MaxZ)/2
+		midZr = (n.MinZ + n.MaxZ)/2 + 1
+	}
+
+	n.Children = []*OctreeNode{
+		{n.MinX, midXl, n.MinY, midYl, n.MinZ, midZl, 0, n, make([]*OctreeNode, 0)},
+		{midXr, n.MaxX, n.MinY, midYl, n.MinZ, midZl, 0, n, make([]*OctreeNode, 0)},
+		{n.MinX, midXl, midYr, n.MaxY, n.MinZ, midZl, 0, n, make([]*OctreeNode, 0)},
+		{n.MinX, midXl, n.MinY, midYl, midZr, n.MaxZ, 0, n, make([]*OctreeNode, 0)},
+		{midXr, n.MaxX, midYr, n.MaxY, n.MinZ, midZl, 0, n, make([]*OctreeNode, 0)},
+		{midXr, n.MaxX, n.MinY, midYl, midZr, n.MaxZ, 0, n, make([]*OctreeNode, 0)},
+		{n.MinX, midXl, midYr, n.MaxY, midZr, n.MaxZ, 0, n, make([]*OctreeNode, 0)},
+		{midXr, n.MaxX, midYr, n.MaxY, midZr, n.MaxZ, 0, n, make([]*OctreeNode, 0)},
+	}
+}
+
+func isEntirelyIn(node *OctreeNode, nanobot *Nanobot) bool {
+	corners := getCorners(node)
+
+	for _, c := range corners {
+		if distNanobots(nanobot, c) > nanobot.Range {
+			return false
 		}
 	}
-	return res
+	return true
+}
+
+func isEntirelyOut(node *OctreeNode, nanobot *Nanobot) bool {
+	corners := getCorners(node)
+	for _, c := range corners {
+		if distNanobots(nanobot, c) <= nanobot.Range {
+			return false
+		}
+	}
+
+	if isCenterNodeInNanobot(node, nanobot) {
+		return false
+	}
+
+	if isBoundingBoxOut(node, nanobot) {
+		return true
+	}
+
+	/*for x := node.MinX; x<= node.MaxX; x++ {
+		for y:= node.MinY; y<= node.MaxY; y++ {
+			if distNanobots(nanobot, &Nanobot{x, y, node.MinZ, 0}) <= nanobot.Range {
+				return false
+			}
+			if distNanobots(nanobot, &Nanobot{x, y, node.MaxZ, 0}) <= nanobot.Range {
+				return false
+			}
+		}
+
+		for z:= node.MinZ; z<= node.MaxZ; z++ {
+			if distNanobots(nanobot, &Nanobot{x, node.MinY, z, 0}) <= nanobot.Range {
+				return false
+			}
+			if distNanobots(nanobot, &Nanobot{x, node.MaxY, z, 0}) <= nanobot.Range {
+				return false
+			}
+		}
+	}
+
+	for y:= node.MinY; y<= node.MaxY; y++ {
+		for z:= node.MinZ; z<= node.MaxZ; z++ {
+			if distNanobots(nanobot, &Nanobot{node.MinX, y, z, 0}) <= nanobot.Range {
+				return false
+			}
+			if distNanobots(nanobot, &Nanobot{node.MaxX, y, z, 0}) <= nanobot.Range {
+				return false
+			}
+		}
+	}*/
+
+	return true
+}
+func isBoundingBoxOut(node *OctreeNode, nanobot *Nanobot) bool {
+	return node.MaxX < nanobot.X - nanobot.Range || node.MinX > nanobot.X + nanobot.Range || node.MaxY < nanobot.Y - nanobot.Range  || node.MinY > nanobot.Y + nanobot.Range || node.MaxZ < nanobot.Z - nanobot.Range || node.MinZ > nanobot.Z + nanobot.Range
+}
+func isCenterNodeInNanobot(node *OctreeNode, nanobot *Nanobot) bool {
+	return nanobot.X >= node.MinX && nanobot.X <= node.MaxX && nanobot.Y >= node.MinY && nanobot.Y <= node.MaxY && nanobot.Z >= node.MinZ && nanobot.Z <= node.MaxZ
+}
+func getCorners(n *OctreeNode) []*Nanobot {
+	return []*Nanobot{
+		{n.MinX, n.MinY, n.MinZ, 0},
+		{n.MinX, n.MinY, n.MaxZ, 0},
+		{n.MinX, n.MaxY, n.MinZ, 0},
+		{n.MaxX, n.MinY, n.MinZ, 0},
+		{n.MaxX, n.MinY, n.MaxZ, 0},
+		{n.MinX, n.MaxY, n.MaxZ, 0},
+		{n.MaxX, n.MaxY, n.MinZ, 0},
+		{n.MaxX, n.MaxY, n.MaxZ, 0},
+	}
 }
 
 func getBounds(nanobots []*Nanobot) (int, int, int, int, int, int, int, int) {
@@ -130,23 +228,23 @@ func getBounds(nanobots []*Nanobot) (int, int, int, int, int, int, int, int) {
 	maxR := 0
 
 	for _, b := range nanobots {
-		if b.X < minX {
-			minX = b.X
+		if b.X-b.Range < minX {
+			minX = b.X-b.Range
 		}
-		if b.X > maxX {
-			maxX = b.X
+		if b.X+b.Range > maxX {
+			maxX = b.X + b.Range
 		}
-		if b.Y < minY {
-			minY = b.Y
+		if b.Y - b.Range < minY {
+			minY = b.Y - b.Range
 		}
-		if b.Y > maxY {
-			maxY = b.Y
+		if b.Y + b.Range > maxY {
+			maxY = b.Y + b.Range
 		}
-		if b.Z < minZ {
-			minZ = b.Z
+		if b.Z - b.Range < minZ {
+			minZ = b.Z - b.Range
 		}
-		if b.Z > maxZ {
-			maxZ = b.Z
+		if b.Z + b.Range > maxZ {
+			maxZ = b.Z + b.Range
 		}
 		if b.Range < minR {
 			minR = b.Range
